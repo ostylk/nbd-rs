@@ -182,7 +182,10 @@ name = "nbd-rs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "futures",
  "genetlink",
+ "netlink-packet-core",
+ "netlink-packet-generic",
  "tokio",
 ]
 

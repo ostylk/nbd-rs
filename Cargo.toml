@@ -5,5 +5,8 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+futures = "0.3.33"
 genetlink = "0.2.6"
+netlink-packet-core = "0.8.1"
+netlink-packet-generic = "0.4.0"
 tokio = { version = "1.53.1", features = ["full"] }
