@@ -302,6 +302,7 @@ name = "rustlink-packet-nbd"
 version = "0.1.0"
 dependencies = [
  "netlink-packet-core",
+ "netlink-packet-generic",
 ]
 
 [[package]]
