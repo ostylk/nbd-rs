@@ -1,3 +1,6 @@
-fn main() {
-    println!("Hello, world!");
+use anyhow::Error;
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    Ok(())
 }
