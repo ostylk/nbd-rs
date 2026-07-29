@@ -1,5 +1,21 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+pub mod constants;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenlNbdCmd {
+
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GenlNbd {
+    /// Command code of this message
+    pub cmd: GenlNbdCmd,
+    /// Netlink attributes in this message
+    pub nlas: Vec<GenlNbdAttrs>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GenlNbdAttrs {
+
 }
 
 #[cfg(test)]
