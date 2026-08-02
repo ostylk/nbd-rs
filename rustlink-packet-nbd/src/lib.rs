@@ -1,6 +1,7 @@
 use netlink_packet_core::{DecodeError, Emitable};
 use netlink_packet_generic::GenlFamily;
 
+pub mod attributes;
 pub mod constants;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,11 +78,6 @@ impl Emitable for GenlNbd {
     fn emit(&self, buffer: &mut [u8]) {
         todo!()
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum GenlNbdAttrs {
-
 }
 
 #[cfg(test)]
