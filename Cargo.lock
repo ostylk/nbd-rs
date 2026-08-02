@@ -186,6 +186,7 @@ dependencies = [
  "genetlink",
  "netlink-packet-core",
  "netlink-packet-generic",
+ "netlink-packet-nbd",
  "tokio",
 ]
 
