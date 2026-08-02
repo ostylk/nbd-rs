@@ -74,11 +74,11 @@ impl GenlFamily for NbdPayload {
 
 impl Emitable for NbdPayload {
     fn buffer_len(&self) -> usize {
-        todo!()
+        self.nlas.as_slice().buffer_len()
     }
 
     fn emit(&self, buffer: &mut [u8]) {
-        todo!()
+        self.nlas.as_slice().emit(buffer)
     }
 }
 
