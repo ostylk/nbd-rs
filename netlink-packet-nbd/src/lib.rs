@@ -1,11 +1,13 @@
 use netlink_packet_core::{DecodeError, Emitable};
 use netlink_packet_generic::GenlFamily;
 
+use crate::attributes::NbdAttrs;
+
 pub mod attributes;
 pub mod constants;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GenlNbdCmd {
+pub enum NbdCmd {
     Connect,
     Disconnect,
     Reconfigure,
@@ -13,9 +15,9 @@ pub enum GenlNbdCmd {
     Status,
 }
 
-impl From<GenlNbdCmd> for u8 {
-    fn from(cmd: GenlNbdCmd) -> u8 {
-        use GenlNbdCmd::*;
+impl From<NbdCmd> for u8 {
+    fn from(cmd: NbdCmd) -> u8 {
+        use NbdCmd::*;
         use constants::*;
         match cmd {
             Connect => CMD_CONNECT,
@@ -27,11 +29,11 @@ impl From<GenlNbdCmd> for u8 {
     }
 }
 
-impl TryFrom<u8> for GenlNbdCmd {
+impl TryFrom<u8> for NbdCmd {
     type Error = DecodeError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        use GenlNbdCmd::*;
+        use NbdCmd::*;
         use constants::*;
         Ok(match value {
             CMD_CONNECT => Connect,
@@ -49,14 +51,14 @@ impl TryFrom<u8> for GenlNbdCmd {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GenlNbd {
+pub struct NbdPayload {
     /// Command code of this message
-    pub cmd: GenlNbdCmd,
+    pub cmd: NbdCmd,
     /// Netlink attributes in this message
-    pub nlas: Vec<GenlNbdAttrs>,
+    pub nlas: Vec<NbdAttrs>,
 }
 
-impl GenlFamily for GenlNbd {
+impl GenlFamily for NbdPayload {
     fn family_name() -> &'static str {
         constants::GENL_FAMILY_NAME
     }
@@ -70,7 +72,7 @@ impl GenlFamily for GenlNbd {
     }
 }
 
-impl Emitable for GenlNbd {
+impl Emitable for NbdPayload {
     fn buffer_len(&self) -> usize {
         todo!()
     }

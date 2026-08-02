@@ -208,6 +208,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "netlink-packet-nbd"
+version = "0.1.0"
+dependencies = [
+ "netlink-packet-core",
+ "netlink-packet-generic",
+]
+
+[[package]]
 name = "netlink-proto"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,14 +303,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
  "bitflags",
-]
-
-[[package]]
-name = "rustlink-packet-nbd"
-version = "0.1.0"
-dependencies = [
- "netlink-packet-core",
- "netlink-packet-generic",
 ]
 
 [[package]]

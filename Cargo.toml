@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "rustlink-packet-nbd"
+    "netlink-packet-nbd"
 ]
 
 [package]
