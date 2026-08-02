@@ -1,4 +1,6 @@
-use netlink_packet_core::{Emitable, NLA_F_NESTED, Nla, emit_u32, emit_u64};
+use netlink_packet_core::{DecodeError, Emitable, NLA_F_NESTED, Nla, NlaBuffer, NlasIterator, Parseable, emit_u32, emit_u64, parse_string, parse_u8, parse_u32, parse_u64};
+
+use crate::constants::{DEVICE_ITEM, SOCK_ITEM};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NbdAttrs {
@@ -85,6 +87,29 @@ impl Nla for NbdAttrs {
     }
 }
 
+impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdAttrs {
+    fn parse(buf: &NlaBuffer<&'a T>) -> Result<Self, DecodeError> {
+        use crate::constants::*;
+
+        let payload = buf.value();
+        Ok(match buf.kind() {
+            ATTR_INDEX => Self::Index(parse_u32(payload).unwrap()),
+            ATTR_SIZE_BYTES => Self::SizeBytes(parse_u64(payload).unwrap()),
+            ATTR_BLOCK_SIZE_BYTES => Self::BlockSizeBytes(parse_u64(payload).unwrap()),
+            ATTR_TIMEOUT => Self::Timeout(parse_u64(payload).unwrap()),
+            ATTR_SERVER_FLAGS => Self::ServerFlags(parse_u64(payload).unwrap()),
+            ATTR_CLIENT_FLAGS => Self::ClientFlags(parse_u64(payload).unwrap()),
+            ATTR_SOCKETS => Self::Sockets(parse_nlas(payload)?),
+            ATTR_DEAD_CONN_TIMEOUT => Self::DeadConnTimeout(parse_u64(payload).unwrap()),
+            ATTR_DEVICE_LIST => Self::DeviceList(parse_nlas(payload)?),
+            ATTR_BACKEND_IDENTIFIER => Self::BackendIdentifier(parse_string(payload).unwrap()),
+            kind => {
+                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
+            }
+        })
+    }
+}
+
 impl Nla for NbdSocket {
     fn value_len(&self) -> usize {
         self.0.as_slice().buffer_len()
@@ -97,6 +122,17 @@ impl Nla for NbdSocket {
 
     fn emit_value(&self, buffer: &mut [u8]) {
         self.0.as_slice().emit(buffer);
+    }
+}
+
+impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdSocket {
+    fn parse(buf: &NlaBuffer<&'a T>) -> Result<Self, DecodeError> {
+        Ok(match buf.kind() {
+            SOCK_ITEM => Self(parse_nlas(buf.value())?),
+            kind => {
+                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
+            }
+        })
     }
 }
 
@@ -124,6 +160,20 @@ impl Nla for NbdSocketAttrs {
     }
 }
 
+impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdSocketAttrs {
+    fn parse(buf: &NlaBuffer<&'a T>) -> Result<Self, DecodeError> {
+        use crate::constants::*;
+
+        let payload = buf.value();
+        Ok(match buf.kind() {
+            SOCK_FD => Self::SocketFd(parse_u32(payload).unwrap()),
+            kind => {
+                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
+            }
+        })
+    }
+}
+
 impl Nla for NbdDevice {
     fn value_len(&self) -> usize {
         self.0.as_slice().buffer_len()
@@ -136,6 +186,17 @@ impl Nla for NbdDevice {
 
     fn emit_value(&self, buffer: &mut [u8]) {
         self.0.as_slice().emit(buffer);
+    }
+}
+
+impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdDevice {
+    fn parse(buf: &NlaBuffer<&'a T>) -> Result<Self, DecodeError> {
+        Ok(match buf.kind() {
+            DEVICE_ITEM => Self(parse_nlas(buf.value())?),
+            kind => {
+                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
+            }
+        })
     }
 }
 
@@ -164,4 +225,27 @@ impl Nla for NbdDeviceAttrs {
             Connected(v) => buffer[0] = *v,
         }
     }
+}
+
+impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdDeviceAttrs {
+    fn parse(buf: &NlaBuffer<&'a T>) -> Result<Self, netlink_packet_core::DecodeError> {
+        use crate::constants::*;
+
+        let payload = buf.value();
+        Ok(match buf.kind() {
+            DEVICE_INDEX => Self::Index(parse_u32(payload).unwrap()),
+            DEVICE_CONNECTED => Self::Connected(parse_u8(payload).unwrap()),
+            kind => {
+                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
+            }
+        })
+    }
+}
+
+pub fn parse_nlas<'a, T: Parseable<NlaBuffer<&'a [u8]>>>(payload: &'a [u8]) -> Result<Vec<T>, DecodeError> {
+    NlasIterator::new(payload)
+        .map(|buf| {
+            buf.and_then(|inner| T::parse(&inner))
+        })
+        .collect()
 }

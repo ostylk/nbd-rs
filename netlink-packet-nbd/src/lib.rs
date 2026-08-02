@@ -1,7 +1,7 @@
-use netlink_packet_core::{DecodeError, Emitable};
-use netlink_packet_generic::GenlFamily;
+use netlink_packet_core::{DecodeError, Emitable, ParseableParametrized};
+use netlink_packet_generic::{GenlFamily, GenlHeader};
 
-use crate::attributes::NbdAttrs;
+use crate::attributes::{NbdAttrs, parse_nlas};
 
 pub mod attributes;
 pub mod constants;
@@ -79,6 +79,15 @@ impl Emitable for NbdPayload {
 
     fn emit(&self, buffer: &mut [u8]) {
         self.nlas.as_slice().emit(buffer)
+    }
+}
+
+impl ParseableParametrized<[u8], GenlHeader> for NbdPayload {
+    fn parse_with_param(buf: &[u8], header: GenlHeader) -> Result<Self, DecodeError> {
+        Ok(Self {
+            cmd: header.cmd.try_into()?,
+            nlas: parse_nlas(buf)?
+        })
     }
 }
 
