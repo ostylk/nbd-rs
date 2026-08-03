@@ -263,6 +263,7 @@ dependencies = [
  "netlink-packet-core",
  "netlink-packet-generic",
  "netlink-packet-nbd",
+ "netlink-sys",
  "tokio",
 ]
 
