@@ -114,7 +114,6 @@ impl Reply {
 
         //let _option = OptionName::from_bits(stream.read_u32().await?);
         let option = stream.read_u32().await?;
-        println!("Option {option}");
         let reply_type = ReplyType::from_bits(stream.read_u32().await?);
         
         let length = stream.read_u32().await?;
@@ -179,10 +178,7 @@ impl Client {
         let mut exports = Vec::new();
         loop {
             match Reply::recv(stream).await? {
-                Reply::Ack => {
-                    break
-                    println!("Got ack'd. All fine.")
-                },
+                Reply::Ack => break,
                 Reply::Server(name) => exports.push(name),
                 rep if rep.is_error() => {
                     panic!("Failed export listing with: {rep:?}");
