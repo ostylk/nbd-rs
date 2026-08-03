@@ -53,6 +53,7 @@
               rust-analyzer
               clippy
               rustfmt
+              nbd
             ];
             RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
           };
