@@ -16,3 +16,4 @@ netlink-packet-core = "0.8.1"
 netlink-packet-generic = "0.4.0"
 tokio = { version = "1.53.1", features = ["full"] }
 netlink-packet-nbd = { path = "./netlink-packet-nbd" }
+bitfields = "3.0.0"
