@@ -51,10 +51,6 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn flags(&self) -> ClientFlags {
-        self.flags
-    }
-
     pub async fn export_name(mut self, name: &str) -> Result<(u64, TransmissionFlags)> {
         self.stream.write_all(NEW_MAGIC).await?;
         self.stream.write_u32(OptionType::ExportName.into_bits()).await?;
