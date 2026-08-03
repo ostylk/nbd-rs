@@ -1,14 +1,42 @@
 use anyhow::Error;
 use futures::StreamExt;
 use genetlink::new_connection;
-use netlink_packet_core::{NLM_F_ACK, NLM_F_DUMP, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload};
-use netlink_packet_generic::{GenlMessage, ctrl::{GenlCtrl, GenlCtrlCmd}};
+use netlink_packet_core::{NLM_F_ACK, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload};
+use netlink_packet_generic::GenlMessage;
 use netlink_packet_nbd::{NbdCmd, NbdPayload, attributes::{NbdAttrs, NbdSocket, NbdSocketAttrs::SocketFd}};
+use tokio::net::TcpStream;
+
+use crate::nbd::{ClientFlagsBuilder, negotiate};
+
+mod nbd;
+
+async fn connect_nbd() -> Result<(), Error> {
+    let mut stream = TcpStream::connect("127.0.0.1:8002").await?;
+    let request_flags = ClientFlagsBuilder::new()
+        .with_fixed_newstyle(true)
+        .with_no_zeroes(true)
+        .build();
+    match negotiate(&mut stream, request_flags).await? {
+        nbd::Negotiation::OldStyle(size, flags) => {
+            println!("OLD STYLE size {} flags {:?}", size, flags);
+        },
+        nbd::Negotiation::NewStyle(client) => {
+            println!("Requesting exports");
+            let exports = client.list_exports(&mut stream).await?;
+            for export in exports {
+                println!("Found export: {}", export);
+            }
+        },
+    }
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let (conn, mut handle, mut recv) = new_connection()?;
+    connect_nbd().await?;
 
+    let (conn, mut handle, mut recv) = new_connection()?;
     tokio::spawn(conn);
 
     let genlmsg = GenlMessage::from_payload(NbdPayload {
@@ -48,6 +76,4 @@ async fn main() -> Result<(), Error> {
         let (unsol, addr) = recv.recv().await?;
         println!("FROM {addr} UNSOLICITED {unsol:?}");
     }
-
-    Ok(())
 }
