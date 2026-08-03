@@ -69,8 +69,6 @@ pub enum OptionName {
     Go = 7,
 }
 
-const REPLY_ERROR_FLAG: u32 = 1 << 31;
-
 #[bitflag(u32)]
 pub enum ReplyType {
     #[base]
@@ -79,16 +77,16 @@ pub enum ReplyType {
     Info = 3,
     MetaContext = 4,
 
-    ErrUnsup = REPLY_ERROR_FLAG | 1,
-    ErrPolicy = REPLY_ERROR_FLAG | 2,
-    ErrInvalid = REPLY_ERROR_FLAG | 3,
-    ErrPlatform = REPLY_ERROR_FLAG | 4,
-    ErrTlsRequired = REPLY_ERROR_FLAG | 5,
-    ErrUnknown = REPLY_ERROR_FLAG | 6,
-    ErrShutdown = REPLY_ERROR_FLAG | 7,
-    ErrBlockSizeRequired = REPLY_ERROR_FLAG | 8,
-    ErrTooBig = REPLY_ERROR_FLAG | 9,
-    ErrExtHeaderRequired = REPLY_ERROR_FLAG | 10,
+    ErrUnsup = 0x8000_0001,
+    ErrPolicy = 0x8000_0002,
+    ErrInvalid = 0x8000_0003,
+    ErrPlatform = 0x8000_0004,
+    ErrTlsRequired = 0x8000_0005,
+    ErrUnknown = 0x8000_0006,
+    ErrShutdown = 0x8000_0007,
+    ErrBlockSizeRequired = 0x8000_0008,
+    ErrTooBig = 0x8000_0009,
+    ErrExtHeaderRequired = 0x8000_000a,
 }
 
 #[derive(Debug)]
