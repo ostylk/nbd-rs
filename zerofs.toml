@@ -1,0 +1,14 @@
+[cache]
+dir = "/tmp/zerofs_cache"
+disk_size_gb = 10.0
+memory_size_gb = 2.0
+
+[storage]
+url = "memory:///"
+encryption_password = "test1234"
+
+[servers.ninep]
+addresses = ["127.0.0.1:8001"]
+
+[servers.nbd]
+addresses = ["127.0.0.1:8002"]
