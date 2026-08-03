@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, ensure};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream};
+use tokio::{io::{self, AsyncReadExt, AsyncWriteExt}, net::TcpStream};
 
 mod protocol;
 use protocol::*;
@@ -53,6 +53,23 @@ pub struct Client {
 impl Client {
     pub fn flags(&self) -> ClientFlags {
         self.flags
+    }
+
+    pub async fn export_name(mut self, name: &str) -> Result<(u64, TransmissionFlags)> {
+        self.stream.write_all(NEW_MAGIC).await?;
+        self.stream.write_u32(OptionType::ExportName.into_bits()).await?;
+        self.stream.write_u32(name.len().try_into()?).await?;
+        self.stream.write_all(name.as_bytes()).await?;
+
+        // Special case, here no reply header is sent, just this
+        let size = self.stream.read_u64().await?;
+        let flags = TransmissionFlags::from_bits(self.stream.read_u16().await?);
+        if !self.flags.no_zeroes() {
+            // Discard 124 bytes of zeroes
+            io::copy(&mut self.stream.take(124), &mut io::sink()).await?;
+        }
+
+        Ok((size, flags))
     }
 
     pub async fn list_exports(&mut self) -> Result<Vec<String>> {

@@ -19,6 +19,8 @@ async fn connect_nbd() -> Result<(), Error> {
     for export in exports {
         println!("Found export: {}", export);
     }
+    let (size, flags) = client.export_name("test1").await?;
+    println!("Bound to device with size {size} and flags {flags:?}");
 
     Ok(())
 }
