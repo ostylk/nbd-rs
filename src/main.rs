@@ -6,27 +6,18 @@ use netlink_packet_generic::GenlMessage;
 use netlink_packet_nbd::{NbdCmd, NbdPayload, attributes::{NbdAttrs, NbdSocket, NbdSocketAttrs::SocketFd}};
 use tokio::net::TcpStream;
 
-use crate::nbd::{ClientFlagsBuilder, negotiate};
+use crate::nbd::negotiate;
 
 mod nbd;
 
 async fn connect_nbd() -> Result<(), Error> {
     let mut stream = TcpStream::connect("127.0.0.1:8002").await?;
-    let request_flags = ClientFlagsBuilder::new()
-        .with_fixed_newstyle(true)
-        .with_no_zeroes(true)
-        .build();
-    match negotiate(&mut stream, request_flags).await? {
-        nbd::Negotiation::OldStyle(size, flags) => {
-            println!("OLD STYLE size {} flags {:?}", size, flags);
-        },
-        nbd::Negotiation::NewStyle(client) => {
-            println!("Requesting exports");
-            let exports = client.list_exports(&mut stream).await?;
-            for export in exports {
-                println!("Found export: {}", export);
-            }
-        },
+    let client = negotiate(&mut stream).await?;
+
+    println!("Requesting exports");
+    let exports = client.list_exports(&mut stream).await?;
+    for export in exports {
+        println!("Found export: {}", export);
     }
 
     Ok(())
