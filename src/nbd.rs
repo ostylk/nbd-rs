@@ -72,6 +72,15 @@ impl Client {
         Ok((size, flags))
     }
 
+    pub async fn abort(mut self) -> Result<()> {
+        self.stream.write_all(NEW_MAGIC).await?;
+        self.stream.write_u32(OptionType::Abort.into_bits()).await?;
+        self.stream.write_u32(0).await?;
+
+        // The reply is actually not guaranteed, so we don't care
+        Ok(())
+    }
+
     pub async fn list_exports(&mut self) -> Result<Vec<String>> {
         self.stream.write_all(NEW_MAGIC).await?;
         self.stream.write_u32(OptionType::List.into_bits()).await?;
