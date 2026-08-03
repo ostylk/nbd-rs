@@ -9,27 +9,17 @@ pub enum Reply {
     Ack,
     Server(String),
     Info,
-    MetaContext,
 
-    ErrUnsup(String),
-    ErrPolicy(String),
-    ErrInvalid(String),
-    ErrPlatform(String),
-    ErrTlsRequired(String),
-    ErrUnknown(String),
-    ErrShutdown(String),
-    ErrBlockSizeRequired(String),
-    ErrTooBig(String),
-    ErrExtHeaderRequired(String),
+    Err(ReplyType, String),
+    Skipped,
 }
 
 impl Reply {
     pub async fn recv(stream: &mut TcpStream) -> Result<Reply> {
         ensure!(stream.read_u64().await? == REPLY_MAGIC);
 
-        //let _option = OptionName::from_bits(stream.read_u32().await?);
-        let option = stream.read_u32().await?;
-        let reply_type = ReplyType::from_bits(stream.read_u32().await?);
+        let _option = stream.read_u32().await?;
+        let reply_type = stream.read_u32().await?;
         
         let length = stream.read_u32().await?;
         let mut buffer = vec![0u8; length as usize];
@@ -37,41 +27,20 @@ impl Reply {
             stream.read_exact(buffer.as_mut_slice()).await?;
         }
 
-        Ok(match reply_type {
-            ReplyType::Ack => Reply::Ack,
-            ReplyType::Server => Reply::Server(String::from_utf8(buffer)?),
-            ReplyType::Info => todo!(),
-            ReplyType::MetaContext => Reply::MetaContext, // TODO: this is not yet parsed
-            ReplyType::ErrUnsup => Reply::ErrUnsup(String::from_utf8(buffer)?),
-            ReplyType::ErrPolicy => Reply::ErrPolicy(String::from_utf8(buffer)?),
-            ReplyType::ErrInvalid => Reply::ErrInvalid(String::from_utf8(buffer)?),
-            ReplyType::ErrPlatform => Reply::ErrPlatform(String::from_utf8(buffer)?),
-            ReplyType::ErrTlsRequired => Reply::ErrTlsRequired(String::from_utf8(buffer)?),
-            ReplyType::ErrUnknown => Reply::ErrUnknown(String::from_utf8(buffer)?),
-            ReplyType::ErrShutdown => Reply::ErrShutdown(String::from_utf8(buffer)?),
-            ReplyType::ErrBlockSizeRequired => Reply::ErrBlockSizeRequired(String::from_utf8(buffer)?),
-            ReplyType::ErrTooBig => Reply::ErrTooBig(String::from_utf8(buffer)?),
-            ReplyType::ErrExtHeaderRequired => Reply::ErrExtHeaderRequired(String::from_utf8(buffer)?),
-        })
-    }
+        use ReplyType::*;
+        let reply = if reply_type == Ack.into_bits() {
+            Reply::Ack
+        } else if reply_type == Server.into_bits() {
+            Reply::Server(String::from_utf8(buffer)?)
+        } else if reply_type == Info.into_bits() {
+            todo!()
+        } else if reply_type >= ErrUnsup.into_bits() && reply_type <= ErrExtHeaderRequired.into_bits() {
+            Reply::Err(ReplyType::from_bits(reply_type), String::from_utf8(buffer)?)
+        } else {
+            Reply::Skipped
+        };
 
-    pub fn is_error(&self) -> bool {
-        match self {
-            Reply::Ack => false,
-            Reply::Server(_) => false,
-            Reply::Info => false,
-            Reply::MetaContext => false,
-            Reply::ErrUnsup(_) => true,
-            Reply::ErrPolicy(_) => true,
-            Reply::ErrInvalid(_) => true,
-            Reply::ErrPlatform(_) => true,
-            Reply::ErrTlsRequired(_) => true,
-            Reply::ErrUnknown(_) => true,
-            Reply::ErrShutdown(_) => true,
-            Reply::ErrBlockSizeRequired(_) => true,
-            Reply::ErrTooBig(_) => true,
-            Reply::ErrExtHeaderRequired(_) => true,
-        }
+        Ok(reply)
     }
 }
 
@@ -95,11 +64,11 @@ impl Client {
             match Reply::recv(stream).await? {
                 Reply::Ack => break,
                 Reply::Server(name) => exports.push(name),
-                rep if rep.is_error() => {
-                    panic!("Failed export listing with: {rep:?}");
+                Reply::Err(reply_type, msg) => {
+                    return Err(anyhow!("Failed export listing with: {reply_type:?}: {msg}"));
                 },
                 _ => {
-                    panic!("Weird reply");
+                    panic!("Unexpected reply");
                 },
             }
         }
