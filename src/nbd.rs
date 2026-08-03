@@ -1,7 +1,9 @@
+use std::os::fd::{AsRawFd, IntoRawFd, RawFd};
+
 use anyhow::{Result, anyhow, ensure};
 use tokio::{io::{self, AsyncReadExt, AsyncWriteExt}, net::TcpStream};
 
-mod protocol;
+pub mod protocol;
 use protocol::*;
 
 #[derive(Debug)]
@@ -51,7 +53,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn export_name(mut self, name: &str) -> Result<(u64, TransmissionFlags)> {
+    pub async fn export_name(mut self, name: &str) -> Result<(u64, TransmissionFlags, RawFd)> {
         self.stream.write_all(NEW_MAGIC).await?;
         self.stream.write_u32(OptionType::ExportName.into_bits()).await?;
         self.stream.write_u32(name.len().try_into()?).await?;
@@ -62,10 +64,12 @@ impl Client {
         let flags = TransmissionFlags::from_bits(self.stream.read_u16().await?);
         if !self.flags.no_zeroes() {
             // Discard 124 bytes of zeroes
-            io::copy(&mut self.stream.take(124), &mut io::sink()).await?;
+            let mut buf = [0u8; 124];
+            self.stream.read_exact(&mut buf).await?;
         }
 
-        Ok((size, flags))
+        let fd = self.stream.into_std()?.into_raw_fd();
+        Ok((size, flags, fd))
     }
 
     pub async fn abort(mut self) -> Result<()> {

@@ -1,3 +1,5 @@
+use std::os::fd::RawFd;
+
 use anyhow::Error;
 use futures::StreamExt;
 use genetlink::new_connection;
@@ -6,28 +8,23 @@ use netlink_packet_generic::GenlMessage;
 use netlink_packet_nbd::{NbdCmd, NbdPayload, attributes::{NbdAttrs, NbdSocket, NbdSocketAttrs::SocketFd}};
 use tokio::net::TcpStream;
 
-use crate::nbd::negotiate;
+use crate::nbd::{negotiate, protocol::TransmissionFlags};
 
 mod nbd;
 
-async fn connect_nbd() -> Result<(), Error> {
+async fn connect_nbd() -> Result<(RawFd, u64, TransmissionFlags), Error> {
     let stream = TcpStream::connect("127.0.0.1:8002").await?;
     let mut client = negotiate(stream).await?;
 
-    println!("Requesting exports");
-    let exports = client.list_exports().await?;
-    for export in exports {
-        println!("Found export: {}", export);
-    }
-    let (size, flags) = client.export_name("test1").await?;
+    let (size, flags, fd) = client.export_name("").await?;
     println!("Bound to device with size {size} and flags {flags:?}");
 
-    Ok(())
+    Ok((fd, size, flags))
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    connect_nbd().await?;
+    let (fd, size, flags) = connect_nbd().await?;
 
     let (conn, mut handle, mut recv) = new_connection()?;
     tokio::spawn(conn);
@@ -36,11 +33,11 @@ async fn main() -> Result<(), Error> {
         cmd: NbdCmd::Connect,
         nlas: vec![
             NbdAttrs::Index(0),
-            NbdAttrs::SizeBytes(1024 * 1024 * 1024),
+            NbdAttrs::SizeBytes(size),
             NbdAttrs::BlockSizeBytes(4096),
             NbdAttrs::Sockets(vec![
                 NbdSocket(vec![
-                    SocketFd(5),
+                    SocketFd(fd as u32),
                 ]),
             ]),
         ],
