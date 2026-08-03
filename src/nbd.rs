@@ -87,7 +87,7 @@ impl Client {
 
     pub async fn list_exports(&self, stream: &mut TcpStream) -> Result<Vec<String>> {
         stream.write_all(NEW_MAGIC).await?;
-        stream.write_u32(OptionName::List.into_bits()).await?;
+        stream.write_u32(OptionType::List.into_bits()).await?;
         stream.write_u32(0).await?;
 
         let mut exports = Vec::new();

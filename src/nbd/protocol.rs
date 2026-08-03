@@ -48,13 +48,19 @@ pub struct TransmissionFlags {
 }
 
 #[bitflag(u32)]
-pub enum OptionName {
+pub enum OptionType {
     #[base]
     ExportName = 1,
     Abort = 2,
     List = 3,
+    PeekExport = 4,
+    Starttls = 5,
     Info = 6,
     Go = 7,
+    StructuredReply = 8,
+    ListMetaContext = 9,
+    SetMetaContext = 10,
+    ExtendedHeaders = 11,
 }
 
 #[bitflag(u32)]
@@ -75,4 +81,13 @@ pub enum ReplyType {
     ErrBlockSizeRequired = 0x8000_0008,
     ErrTooBig = 0x8000_0009,
     ErrExtHeaderRequired = 0x8000_000a,
+}
+
+#[bitflag(u16)]
+pub enum InfoType {
+    #[base]
+    Export = 0,
+    Name = 1,
+    Description = 2,
+    BlockSize = 3,
 }
