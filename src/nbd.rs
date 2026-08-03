@@ -44,8 +44,9 @@ impl Reply {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Client {
+    stream: TcpStream,
     flags: ClientFlags,
 }
 
@@ -54,14 +55,14 @@ impl Client {
         self.flags
     }
 
-    pub async fn list_exports(&self, stream: &mut TcpStream) -> Result<Vec<String>> {
-        stream.write_all(NEW_MAGIC).await?;
-        stream.write_u32(OptionType::List.into_bits()).await?;
-        stream.write_u32(0).await?;
+    pub async fn list_exports(&mut self) -> Result<Vec<String>> {
+        self.stream.write_all(NEW_MAGIC).await?;
+        self.stream.write_u32(OptionType::List.into_bits()).await?;
+        self.stream.write_u32(0).await?;
 
         let mut exports = Vec::new();
         loop {
-            match Reply::recv(stream).await? {
+            match Reply::recv(&mut self.stream).await? {
                 Reply::Ack => break,
                 Reply::Server(name) => exports.push(name),
                 Reply::Err(reply_type, msg) => {
@@ -77,7 +78,7 @@ impl Client {
     }
 }
 
-pub async fn negotiate(stream: &mut TcpStream) -> Result<Client> {
+pub async fn negotiate(mut stream: TcpStream) -> Result<Client> {
     let mut buffer = [0u8; 8];
 
     // Read magic header
@@ -102,7 +103,7 @@ pub async fn negotiate(stream: &mut TcpStream) -> Result<Client> {
         stream.write_u32(flags.into_bits()).await?;
 
         // Done
-        Ok(Client { flags })
+        Ok(Client { stream, flags })
     } else if &buffer == OLD_MAGIC {
         Err(anyhow!("We do not support the oldstyle negotiation."))
     } else {

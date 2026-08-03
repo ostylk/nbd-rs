@@ -11,11 +11,11 @@ use crate::nbd::negotiate;
 mod nbd;
 
 async fn connect_nbd() -> Result<(), Error> {
-    let mut stream = TcpStream::connect("127.0.0.1:8002").await?;
-    let client = negotiate(&mut stream).await?;
+    let stream = TcpStream::connect("127.0.0.1:8002").await?;
+    let mut client = negotiate(stream).await?;
 
     println!("Requesting exports");
-    let exports = client.list_exports(&mut stream).await?;
+    let exports = client.list_exports().await?;
     for export in exports {
         println!("Found export: {}", export);
     }
