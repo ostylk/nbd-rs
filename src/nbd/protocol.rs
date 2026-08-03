@@ -48,6 +48,7 @@ pub struct TransmissionFlags {
 }
 
 #[bitflag(u32)]
+#[derive(Debug)]
 pub enum OptionType {
     #[base]
     ExportName = 1,
@@ -64,6 +65,7 @@ pub enum OptionType {
 }
 
 #[bitflag(u32)]
+#[derive(Debug)]
 pub enum ReplyType {
     #[base]
     Ack = 1,
@@ -84,6 +86,7 @@ pub enum ReplyType {
 }
 
 #[bitflag(u16)]
+#[derive(Debug)]
 pub enum InfoType {
     #[base]
     Export = 0,
