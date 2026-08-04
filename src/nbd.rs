@@ -10,7 +10,7 @@ use protocol::*;
 pub enum Reply {
     Ack,
     Server(String),
-    Info,
+    _Info,
 
     Err(ReplyType, String),
     Skipped,
@@ -70,15 +70,6 @@ impl Client {
 
         let fd = self.stream.into_std()?.into_raw_fd();
         Ok((size, flags, fd))
-    }
-
-    pub async fn abort(mut self) -> Result<()> {
-        self.stream.write_all(NEW_MAGIC).await?;
-        self.stream.write_u32(OptionType::Abort.into_bits()).await?;
-        self.stream.write_u32(0).await?;
-
-        // The reply is actually not guaranteed, so we don't care
-        Ok(())
     }
 
     pub async fn list_exports(&mut self) -> Result<Vec<String>> {
