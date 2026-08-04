@@ -1,6 +1,7 @@
 use std::os::fd::{RawFd};
 
 use anyhow::{anyhow, Error};
+use clap::Parser;
 use futures::StreamExt;
 use genetlink::{message::RawGenlMessage, new_connection};
 use netlink_packet_core::{NLM_F_ACK, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload, ParseableParametrized};
@@ -9,12 +10,13 @@ use netlink_packet_nbd::{NbdCmd, NbdPayload, attributes::{NbdAttrs, NbdSocket, N
 use netlink_sys::AsyncSocket;
 use tokio::net::TcpStream;
 
-use crate::nbd::{negotiate, protocol::TransmissionFlags};
+use crate::{cli::Cli, nbd::{negotiate, protocol::TransmissionFlags}};
 
+mod cli;
 mod nbd;
 
-async fn connect_nbd() -> Result<(RawFd, u64, TransmissionFlags), Error> {
-    let stream = TcpStream::connect("127.0.0.1:8002").await?;
+async fn connect_nbd(host: &str, port: u16) -> Result<(RawFd, u64, TransmissionFlags), Error> {
+    let stream = TcpStream::connect(format!("{host}:{port}")).await?;
     let client = negotiate(stream).await?;
 
     let (size, flags, fd) = client.export_name("").await?;
@@ -25,6 +27,24 @@ async fn connect_nbd() -> Result<(RawFd, u64, TransmissionFlags), Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    let cli = Cli::parse();
+
+    match cli.cmd {
+        cli::Commands::List => {
+            let stream = TcpStream::connect(format!("{}:{}", cli.host, cli.port)).await?;
+            let mut client = negotiate(stream).await?;
+            let exports = client.list_exports().await?;
+            println!("Servers exposes the following exports:");
+            for export in exports {
+                println!("- {export}");
+            }
+            return Ok(())
+        },
+        cli::Commands::Go => {
+            
+        },
+    }
+
     let (conn, mut handle, _) = new_connection()?;
     tokio::spawn(conn);
 
@@ -36,7 +56,7 @@ async fn main() -> Result<(), Error> {
     conn2.socket_mut().socket_mut().add_membership(*mcast_grp)?;
     tokio::spawn(conn2);
 
-    let (fd, size, flags) = connect_nbd().await?;
+    let (fd, size, flags) = connect_nbd(&cli.host, cli.port).await?;
 
     let genlmsg = GenlMessage::from_payload(NbdPayload {
         cmd: NbdCmd::Connect,
