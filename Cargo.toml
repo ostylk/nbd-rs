@@ -20,3 +20,5 @@ bitfields = "3.0.0"
 netlink-sys = { version = "0.8.8", features = ["tokio", "tokio_socket"] }
 thiserror = "2.0.19"
 clap = { version = "4.6.5", features = ["derive"] }
+log = "0.4.33"
+env_logger = "0.11.11"

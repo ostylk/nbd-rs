@@ -1,9 +1,10 @@
 use std::os::fd::{RawFd};
 
-use anyhow::{anyhow, Error};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use futures::StreamExt;
 use genetlink::{message::RawGenlMessage, new_connection};
+use log::{error, info};
 use netlink_packet_core::{NLM_F_ACK, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload, ParseableParametrized};
 use netlink_packet_generic::GenlMessage;
 use netlink_packet_nbd::{NbdCmd, NbdPayload, attributes::{NbdAttrs, NbdSocket, NbdSocketAttrs::SocketFd}, constants::GENL_MCAST_GROUP_NAME};
@@ -15,7 +16,7 @@ use crate::{cli::Cli, nbd::{negotiate, protocol::TransmissionFlags}};
 mod cli;
 mod nbd;
 
-async fn connect_nbd(host: &str, port: u16) -> Result<(RawFd, u64, TransmissionFlags), Error> {
+async fn connect_nbd(host: &str, port: u16) -> Result<(RawFd, u64, TransmissionFlags)> {
     let stream = TcpStream::connect(format!("{host}:{port}")).await?;
     let client = negotiate(stream).await?;
 
@@ -25,23 +26,23 @@ async fn connect_nbd(host: &str, port: u16) -> Result<(RawFd, u64, TransmissionF
     Ok((fd, size, flags))
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    let cli = Cli::parse();
+async fn run(cli: Cli) -> Result<()> {
+    info!("Starting up...");
 
     match cli.cmd {
         cli::Commands::List => {
-            let stream = TcpStream::connect(format!("{}:{}", cli.host, cli.port)).await?;
-            let mut client = negotiate(stream).await?;
-            let exports = client.list_exports().await?;
-            println!("Servers exposes the following exports:");
+            let addr = format!("{}:{}", cli.host, cli.port);
+            let stream = TcpStream::connect(&addr).await.with_context(|| format!("Could not connect to {addr}"))?;
+            let mut client = negotiate(stream).await.context("nbd server handshake/negotiation failed. Is it up to date?")?;
+            let exports = client.list_exports().await.context("Cannot retrieve exports list from nbd server.")?;
+            info!("Servers exposes the following exports:");
             for export in exports {
-                println!("- {export}");
+                info!("- {export}");
             }
             return Ok(())
         },
         cli::Commands::Go => {
-            
+
         },
     }
 
@@ -100,5 +101,18 @@ async fn main() -> Result<(), Error> {
         if let NetlinkPayload::InnerMessage(RawGenlMessage { header, payload, .. }) = unsol.payload {
             let _pkt = NbdPayload::parse_with_param(payload.as_slice(), header);
         }
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    // Init logging
+    env_logger::init();
+    // Parse cli arguments
+    let cli = Cli::parse();
+
+    if let Err(e) = run(cli).await {
+        error!("{e:?}");
+        std::process::exit(1);
     }
 }

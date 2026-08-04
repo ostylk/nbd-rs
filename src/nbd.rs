@@ -92,7 +92,7 @@ impl Client {
                 Reply::Ack => break,
                 Reply::Server(name) => exports.push(name),
                 Reply::Err(reply_type, msg) => {
-                    return Err(anyhow!("Failed export listing with: {reply_type:?}: {msg}"));
+                    return Err(anyhow!("nbd server error: {reply_type:?}: {msg}"));
                 },
                 _ => {
                     panic!("Unexpected reply");
