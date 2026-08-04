@@ -18,3 +18,4 @@ tokio = { version = "1.53.1", features = ["full"] }
 netlink-packet-nbd = { path = "./netlink-packet-nbd" }
 bitfields = "3.0.0"
 netlink-sys = { version = "0.8.8", features = ["tokio", "tokio_socket"] }
+thiserror = "2.0.19"

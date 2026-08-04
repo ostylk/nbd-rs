@@ -264,6 +264,7 @@ dependencies = [
  "netlink-packet-generic",
  "netlink-packet-nbd",
  "netlink-sys",
+ "thiserror 2.0.19",
  "tokio",
 ]
 
