@@ -1,11 +1,11 @@
 use std::os::fd::{RawFd};
 
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use futures::StreamExt;
-use genetlink::{GenetlinkHandle, new_connection};
-use netlink_packet_core::{NLM_F_ACK, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload};
-use netlink_packet_generic::{GenlMessage, ctrl::{GenlCtrl, GenlCtrlCmd, nlas::GenlCtrlAttrs}};
-use netlink_packet_nbd::{NbdCmd, NbdPayload, attributes::{NbdAttrs, NbdSocket, NbdSocketAttrs::SocketFd}, constants::{GENL_FAMILY_NAME, GENL_MCAST_GROUP_NAME}};
+use genetlink::{message::RawGenlMessage, new_connection};
+use netlink_packet_core::{NLM_F_ACK, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload, ParseableParametrized};
+use netlink_packet_generic::GenlMessage;
+use netlink_packet_nbd::{NbdCmd, NbdPayload, attributes::{NbdAttrs, NbdSocket, NbdSocketAttrs::SocketFd}, constants::GENL_MCAST_GROUP_NAME};
 use netlink_sys::AsyncSocket;
 use tokio::net::TcpStream;
 
@@ -23,68 +23,20 @@ async fn connect_nbd() -> Result<(RawFd, u64, TransmissionFlags), Error> {
     Ok((fd, size, flags))
 }
 
-async fn get_mcast_grp(handle: &mut GenetlinkHandle) -> Result<u32, Error> {
-    let genlmsg = GenlMessage::from_payload(GenlCtrl {
-        cmd: GenlCtrlCmd::GetFamily,
-        nlas: vec![
-            GenlCtrlAttrs::FamilyName(GENL_FAMILY_NAME.into()),
-        ],
-    });
-    let mut nlhdr = NetlinkHeader::default();
-    nlhdr.flags = NLM_F_REQUEST | NLM_F_ACK;
-    let nlmsg = NetlinkMessage::new(nlhdr, genlmsg.into());
-
-    let mut resps = handle.request(nlmsg).await?;
-    if let Some(resp) = resps.next().await {
-        let resp = resp?;
-        match resp.payload {
-            NetlinkPayload::Done(_) => todo!(),
-            NetlinkPayload::Error(_) => todo!(),
-            NetlinkPayload::Noop => todo!(),
-            NetlinkPayload::Overrun(_) => todo!(),
-            NetlinkPayload::InnerMessage(GenlMessage { payload, .. }) => {
-                let GenlCtrlAttrs::McastGroups(nlas) = payload.nlas.iter().find(|elem| matches!(elem, GenlCtrlAttrs::McastGroups(_))).unwrap() else { unreachable!() };
-
-                let mut mcast_grp_idx = None;
-                'outer: for (idx, ele) in nlas.iter().enumerate() {
-                    for ite in ele {
-                        if let netlink_packet_generic::ctrl::nlas::McastGrpAttrs::Name(name) = ite
-                            && name == GENL_MCAST_GROUP_NAME {
-                                mcast_grp_idx = Some(idx);
-                                break 'outer;
-                            }
-                    }
-                }
-
-                let nlas = &nlas[mcast_grp_idx.expect("no multicast group found")];
-                for ite in nlas {
-                    if let netlink_packet_generic::ctrl::nlas::McastGrpAttrs::Id(id) = ite {
-                        return Ok(*id);
-                    }
-                }
-            },
-            _ => todo!(),
-        }
-    }
-
-   Err(Error::msg("didnt find shit"))
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let (fd, size, flags) = connect_nbd().await?;
-
     let (conn, mut handle, _) = new_connection()?;
-
-    let (mut conn2, _, mut recv) = new_connection()?;
-    _ = conn2.socket_mut().socket_mut().bind_auto()?;
-    let mcast_grp = get_mcast_grp(&mut handle).await?;
-    conn2.socket_mut().socket_mut().add_membership(mcast_grp)?;
-
     tokio::spawn(conn);
+
+    // Figure out multicast group id and setup second socket to listen for nbd events
+    let family = handle.resolve_family::<NbdPayload>().await?;
+    let mcast_grp = family.multicast_groups.get(GENL_MCAST_GROUP_NAME).ok_or(anyhow!("No nbd multicast group found"))?;
+    let (mut conn2, _, mut recv) = new_connection()?;
+    conn2.socket_mut().socket_mut().bind_auto()?;
+    conn2.socket_mut().socket_mut().add_membership(*mcast_grp)?;
     tokio::spawn(conn2);
 
-    println!("Figured out {mcast_grp}");
+    let (fd, size, flags) = connect_nbd().await?;
 
     let genlmsg = GenlMessage::from_payload(NbdPayload {
         cmd: NbdCmd::Connect,
@@ -124,5 +76,9 @@ async fn main() -> Result<(), Error> {
     loop {
         let (unsol, addr) = recv.recv().await?;
         println!("FROM {addr} UNSOLICITED {unsol:?}");
+
+        if let NetlinkPayload::InnerMessage(RawGenlMessage { header, payload, .. }) = unsol.payload {
+            let _pkt = NbdPayload::parse_with_param(payload.as_slice(), header);
+        }
     }
 }
