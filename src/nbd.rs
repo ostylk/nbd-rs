@@ -1,7 +1,7 @@
-use std::os::fd::{AsRawFd, IntoRawFd, RawFd};
+use std::os::fd::{IntoRawFd, RawFd};
 
 use anyhow::{Result, anyhow, ensure};
-use tokio::{io::{self, AsyncReadExt, AsyncWriteExt}, net::TcpStream};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream};
 
 pub mod protocol;
 use protocol::*;
