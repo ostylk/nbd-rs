@@ -46,6 +46,8 @@
         {
           inherit (pkgs) nbd-rs;
           default = pkgs.nbd-rs;
+
+          zerofs = _pkgs.callPackage ./nix/zerofs { };
         }
       ) nixpkgs.legacyPackages;
 

@@ -1,0 +1,26 @@
+diff --git a/src/cli/server.rs b/src/cli/server.rs
+index 699641d..ae16088 100644
+--- a/src/cli/server.rs
++++ b/src/cli/server.rs
+@@ -141,8 +141,8 @@ fn start_ninep_servers(
+ 
+ async fn ensure_nbd_directory(fs: &Arc<ZeroFS>) -> Result<()> {
+     let creds = Credentials {
+-        uid: 0,
+-        gid: 0,
++        uid: 20511,
++        gid: 20001,
+         gid_known: true,
+         groups: [0; 16],
+         groups_count: 1,
+@@ -156,8 +156,8 @@ async fn ensure_nbd_directory(fs: &Arc<ZeroFS>) -> Result<()> {
+             debug!(".nbd directory lookup returned: {:?}, will create it", e);
+             let attr = SetAttributes {
+                 mode: crate::fs::types::SetMode::Set(0o755),
+-                uid: crate::fs::types::SetUid::Set(0),
+-                gid: crate::fs::types::SetGid::Set(0),
++                uid: crate::fs::types::SetUid::Set(20511),
++                gid: crate::fs::types::SetGid::Set(20001),
+                 ..Default::default()
+             };
+             fs.mkdir(&creds, 0, nbd_name, &attr)
