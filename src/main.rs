@@ -51,10 +51,10 @@ async fn run(cli: Cli) -> Result<()> {
             }
             return Ok(());
         }
-        cli::Commands::Info => {
+        cli::Commands::Info { name } => {
             let mut client = connect_tcp(&cli.host, cli.port).await?;
             let info = client
-                .info_export("")
+                .info_export(&name.unwrap_or("".to_string()))
                 .await
                 .context("Cannot query info about export  .")?;
 

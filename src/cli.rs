@@ -19,7 +19,7 @@ pub enum Commands {
     /// Lists all exported shares by the nbd server (if possible)
     List,
     /// Queries more specific information about an export
-    Info,
+    Info { name: Option<String> },
     /// Binds and monitors the nbd connection
     Go,
 }
