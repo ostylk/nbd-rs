@@ -1,7 +1,10 @@
 use std::os::fd::{IntoRawFd, RawFd};
 
 use anyhow::{Result, anyhow, ensure};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 pub mod protocol;
 use protocol::*;
@@ -22,7 +25,7 @@ impl Reply {
 
         let _option = stream.read_u32().await?;
         let reply_type = stream.read_u32().await?;
-        
+
         let length = stream.read_u32().await?;
         let mut buffer = vec![0u8; length as usize];
         if length > 0 {
@@ -36,7 +39,9 @@ impl Reply {
             Reply::Server(String::from_utf8(buffer)?)
         } else if reply_type == Info.into_bits() {
             todo!()
-        } else if reply_type >= ErrUnsup.into_bits() && reply_type <= ErrExtHeaderRequired.into_bits() {
+        } else if reply_type >= ErrUnsup.into_bits()
+            && reply_type <= ErrExtHeaderRequired.into_bits()
+        {
             Reply::Err(ReplyType::from_bits(reply_type), String::from_utf8(buffer)?)
         } else {
             Reply::Skipped
@@ -55,7 +60,9 @@ pub struct Client {
 impl Client {
     pub async fn export_name(mut self, name: &str) -> Result<(u64, TransmissionFlags, RawFd)> {
         self.stream.write_all(NEW_MAGIC).await?;
-        self.stream.write_u32(OptionType::ExportName.into_bits()).await?;
+        self.stream
+            .write_u32(OptionType::ExportName.into_bits())
+            .await?;
         self.stream.write_u32(name.len().try_into()?).await?;
         self.stream.write_all(name.as_bytes()).await?;
 
@@ -84,10 +91,10 @@ impl Client {
                 Reply::Server(name) => exports.push(name),
                 Reply::Err(reply_type, msg) => {
                     return Err(anyhow!("nbd server error: {reply_type:?}: {msg}"));
-                },
+                }
                 _ => {
                     panic!("Unexpected reply");
-                },
+                }
             }
         }
 
@@ -124,6 +131,8 @@ pub async fn negotiate(mut stream: TcpStream) -> Result<Client> {
     } else if &buffer == OLD_MAGIC {
         Err(anyhow!("We do not support the oldstyle negotiation."))
     } else {
-        Err(anyhow!("Invalid second magic number, unknown negotiation style"))
+        Err(anyhow!(
+            "Invalid second magic number, unknown negotiation style"
+        ))
     }
 }

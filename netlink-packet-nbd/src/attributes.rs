@@ -1,4 +1,7 @@
-use netlink_packet_core::{DecodeError, Emitable, NLA_F_NESTED, Nla, NlaBuffer, NlasIterator, Parseable, emit_u32, emit_u64, parse_string, parse_u8, parse_u32, parse_u64};
+use netlink_packet_core::{
+    DecodeError, Emitable, NLA_F_NESTED, Nla, NlaBuffer, NlasIterator, Parseable, emit_u32,
+    emit_u64, parse_string, parse_u8, parse_u32, parse_u64,
+};
 
 use crate::constants::{DEVICE_ITEM, SOCK_ITEM};
 
@@ -51,8 +54,8 @@ impl Nla for NbdAttrs {
     }
 
     fn kind(&self) -> u16 {
-        use NbdAttrs::*;
         use crate::constants::*;
+        use NbdAttrs::*;
         match self {
             Index(_) => ATTR_INDEX,
             SizeBytes(_) => ATTR_SIZE_BYTES,
@@ -103,9 +106,7 @@ impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdAttrs {
             ATTR_DEAD_CONN_TIMEOUT => Self::DeadConnTimeout(parse_u64(payload).unwrap()),
             ATTR_DEVICE_LIST => Self::DeviceList(parse_nlas(payload)?),
             ATTR_BACKEND_IDENTIFIER => Self::BackendIdentifier(parse_string(payload).unwrap()),
-            kind => {
-                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
-            }
+            kind => return Err(DecodeError::from(format!("Unknown NLA type: {kind}"))),
         })
     }
 }
@@ -129,9 +130,7 @@ impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdSocket {
     fn parse(buf: &NlaBuffer<&'a T>) -> Result<Self, DecodeError> {
         Ok(match buf.kind() {
             SOCK_ITEM => Self(parse_nlas(buf.value())?),
-            kind => {
-                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
-            }
+            kind => return Err(DecodeError::from(format!("Unknown NLA type: {kind}"))),
         })
     }
 }
@@ -145,8 +144,8 @@ impl Nla for NbdSocketAttrs {
     }
 
     fn kind(&self) -> u16 {
-        use NbdSocketAttrs::*;
         use crate::constants::*;
+        use NbdSocketAttrs::*;
         match self {
             SocketFd(_) => SOCK_FD,
         }
@@ -167,9 +166,7 @@ impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdSocketAttrs
         let payload = buf.value();
         Ok(match buf.kind() {
             SOCK_FD => Self::SocketFd(parse_u32(payload).unwrap()),
-            kind => {
-                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
-            }
+            kind => return Err(DecodeError::from(format!("Unknown NLA type: {kind}"))),
         })
     }
 }
@@ -193,9 +190,7 @@ impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdDevice {
     fn parse(buf: &NlaBuffer<&'a T>) -> Result<Self, DecodeError> {
         Ok(match buf.kind() {
             DEVICE_ITEM => Self(parse_nlas(buf.value())?),
-            kind => {
-                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
-            }
+            kind => return Err(DecodeError::from(format!("Unknown NLA type: {kind}"))),
         })
     }
 }
@@ -210,8 +205,8 @@ impl Nla for NbdDeviceAttrs {
     }
 
     fn kind(&self) -> u16 {
-        use NbdDeviceAttrs::*;
         use crate::constants::*;
+        use NbdDeviceAttrs::*;
         match self {
             Index(_) => DEVICE_INDEX,
             Connected(_) => DEVICE_ITEM,
@@ -235,17 +230,15 @@ impl<'a, T: AsRef<[u8]> + ?Sized> Parseable<NlaBuffer<&'a T>> for NbdDeviceAttrs
         Ok(match buf.kind() {
             DEVICE_INDEX => Self::Index(parse_u32(payload).unwrap()),
             DEVICE_CONNECTED => Self::Connected(parse_u8(payload).unwrap()),
-            kind => {
-                return Err(DecodeError::from(format!("Unknown NLA type: {kind}")))
-            }
+            kind => return Err(DecodeError::from(format!("Unknown NLA type: {kind}"))),
         })
     }
 }
 
-pub fn parse_nlas<'a, T: Parseable<NlaBuffer<&'a [u8]>>>(payload: &'a [u8]) -> Result<Vec<T>, DecodeError> {
+pub fn parse_nlas<'a, T: Parseable<NlaBuffer<&'a [u8]>>>(
+    payload: &'a [u8],
+) -> Result<Vec<T>, DecodeError> {
     NlasIterator::new(payload)
-        .map(|buf| {
-            buf.and_then(|inner| T::parse(&inner))
-        })
+        .map(|buf| buf.and_then(|inner| T::parse(&inner)))
         .collect()
 }

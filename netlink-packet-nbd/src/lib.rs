@@ -41,11 +41,7 @@ impl TryFrom<u8> for NbdCmd {
             CMD_RECONFIGURE => Reconfigure,
             CMD_LINK_DEAD => LinkDead,
             CMD_STATUS => Status,
-            cmd => {
-                return Err(DecodeError::from(format!(
-                    "Unknown nbd command: {cmd}"
-                )))
-            }
+            cmd => return Err(DecodeError::from(format!("Unknown nbd command: {cmd}"))),
         })
     }
 }
@@ -86,12 +82,10 @@ impl ParseableParametrized<[u8], GenlHeader> for NbdPayload {
     fn parse_with_param(buf: &[u8], header: GenlHeader) -> Result<Self, DecodeError> {
         Ok(Self {
             cmd: header.cmd.try_into()?,
-            nlas: parse_nlas(buf)?
+            nlas: parse_nlas(buf)?,
         })
     }
 }
 
 #[cfg(test)]
-mod tests {
-    
-}
+mod tests {}
