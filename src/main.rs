@@ -19,7 +19,7 @@ use tokio::net::TcpStream;
 
 use crate::{
     cli::Cli,
-    nbd::{negotiate, protocol::TransmissionFlags},
+    nbd::{client::Client, connect_tcp, definitions::TransmissionFlags},
 };
 
 mod cli;
@@ -27,7 +27,7 @@ mod nbd;
 
 async fn connect_nbd(host: &str, port: u16) -> Result<(RawFd, u64, TransmissionFlags)> {
     let stream = TcpStream::connect(format!("{host}:{port}")).await?;
-    let client = negotiate(stream).await?;
+    let client = Client::negotiate(stream).await?;
 
     let (size, flags, fd) = client.export_name("").await?;
     println!("Bound to device with size {size} and flags {flags:?}");
@@ -40,13 +40,7 @@ async fn run(cli: Cli) -> Result<()> {
 
     match cli.cmd {
         cli::Commands::List => {
-            let addr = format!("{}:{}", cli.host, cli.port);
-            let stream = TcpStream::connect(&addr)
-                .await
-                .with_context(|| format!("Could not connect to {addr}"))?;
-            let mut client = negotiate(stream)
-                .await
-                .context("nbd server handshake/negotiation failed. Is it up to date?")?;
+            let mut client = connect_tcp(&cli.host, cli.port).await?;
             let exports = client
                 .list_exports()
                 .await
@@ -55,6 +49,16 @@ async fn run(cli: Cli) -> Result<()> {
             for export in exports {
                 info!("- {export}");
             }
+            return Ok(());
+        }
+        cli::Commands::Info => {
+            let mut client = connect_tcp(&cli.host, cli.port).await?;
+            let info = client
+                .info_export("")
+                .await
+                .context("Cannot query info about export  .")?;
+
+            println!("{info:?}");
             return Ok(());
         }
         cli::Commands::Go => {}

@@ -1,5 +1,6 @@
 use bitfields::{bitfield, bitflag};
 
+pub const PORT: u16 = 10809;
 pub const INIT_PASSWD: &[u8; 8] = b"NBDMAGIC";
 pub const OLD_MAGIC: &[u8; 8] = &0x00420281861253_u64.to_be_bytes();
 pub const NEW_MAGIC: &[u8; 8] = b"IHAVEOPT";
