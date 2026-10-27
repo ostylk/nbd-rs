@@ -1,5 +1,3 @@
-use std::os::fd::RawFd;
-
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use futures::StreamExt;
@@ -15,30 +13,16 @@ use netlink_packet_nbd::{
     constants::GENL_MCAST_GROUP_NAME,
 };
 use netlink_sys::AsyncSocket;
-use tokio::net::TcpStream;
 
-use crate::{
-    cli::Cli,
-    nbd::{client::Client, connect_tcp, definitions::TransmissionFlags},
-};
+use crate::{cli::Cli, nbd::connect_tcp};
 
 mod cli;
 mod nbd;
 
-async fn connect_nbd(host: &str, port: u16) -> Result<(RawFd, u64, TransmissionFlags)> {
-    let stream = TcpStream::connect(format!("{host}:{port}")).await?;
-    let client = Client::negotiate(stream).await?;
-
-    let (size, flags, fd) = client.export_name("").await?;
-    println!("Bound to device with size {size} and flags {flags:?}");
-
-    Ok((fd, size, flags))
-}
-
 async fn run(cli: Cli) -> Result<()> {
     info!("Starting up...");
 
-    match cli.cmd {
+    let (fd, size, flags) = match cli.cmd {
         cli::Commands::List => {
             let mut client = connect_tcp(&cli.host, cli.port).await?;
             let exports = client
@@ -53,16 +37,25 @@ async fn run(cli: Cli) -> Result<()> {
         }
         cli::Commands::Info { name } => {
             let mut client = connect_tcp(&cli.host, cli.port).await?;
+            let export_name = name.unwrap_or("".to_string());
             let info = client
-                .info_export(&name.unwrap_or("".to_string()))
+                .info_export(&export_name)
                 .await
-                .context("Cannot query info about export  .")?;
+                .context(format!("Cannot query info about export {export_name}."))?;
 
             println!("{info:?}");
             return Ok(());
         }
-        cli::Commands::Go => {}
-    }
+        cli::Commands::Go { name } => {
+            let mut client = connect_tcp(&cli.host, cli.port).await?;
+            let export_name = name.unwrap_or("".to_string());
+            let (size, flags) = client.go(&export_name).await.context(format!(
+                "Cannot switch into transmission phase with export {export_name}."
+            ))?;
+            let fd = client.into_fd()?;
+            (fd, size, flags)
+        }
+    };
 
     let (conn, mut handle, _) = new_connection()?;
     tokio::spawn(conn);
@@ -77,8 +70,6 @@ async fn run(cli: Cli) -> Result<()> {
     conn2.socket_mut().socket_mut().bind_auto()?;
     conn2.socket_mut().socket_mut().add_membership(*mcast_grp)?;
     tokio::spawn(conn2);
-
-    let (fd, size, flags) = connect_nbd(&cli.host, cli.port).await?;
 
     let genlmsg = GenlMessage::from_payload(NbdPayload {
         cmd: NbdCmd::Connect,

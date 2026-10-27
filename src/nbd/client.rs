@@ -12,7 +12,7 @@ use crate::nbd::{
     },
     payload::{InfoPayload, InfoReply, Reply, Request},
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 
 #[derive(Debug)]
 pub struct Client {
@@ -67,6 +67,11 @@ impl Client {
         }
     }
 
+    pub fn into_fd(self) -> Result<RawFd> {
+        Ok(self.stream.into_std()?.into_raw_fd())
+    }
+
+    #[allow(unused)]
     pub async fn export_name(mut self, name: &str) -> Result<(u64, TransmissionFlags, RawFd)> {
         self.stream.write_all(NEW_MAGIC).await?;
         self.stream
@@ -84,8 +89,42 @@ impl Client {
             self.stream.read_exact(&mut buf).await?;
         }
 
-        let fd = self.stream.into_std()?.into_raw_fd();
-        Ok((size, flags, fd))
+        Ok((size, flags, self.into_fd()?))
+    }
+
+    pub async fn go(&mut self, export_name: &str) -> Result<(u64, TransmissionFlags)> {
+        let payload = InfoPayload::new(export_name, &[InfoType::Export]);
+
+        let req = Request::new(OptionType::Go, payload);
+        req.write(&mut self.stream).await?;
+
+        let mut size = None;
+        let mut flags = None;
+        loop {
+            match Reply::recv(&mut self.stream).await? {
+                Reply::Ack => break,
+                Reply::Info(reply) => {
+                    match reply {
+                        InfoReply::Export(e_size, e_flags) => {
+                            size = Some(e_size);
+                            flags = Some(e_flags);
+                        }
+                        _ => { /* ignore */ }
+                    }
+                }
+                Reply::Err(reply_type, msg) => {
+                    return Err(anyhow!("nbd server error: {reply_type:?}: {msg}"));
+                }
+                _ => {
+                    panic!("Unexpected reply")
+                }
+            }
+        }
+
+        let size = size.context("nbd server did not send export size!")?;
+        let flags = flags.context("nbd server did not send transmission flags")?;
+
+        Ok((size, flags))
     }
 
     pub async fn list_exports(&mut self) -> Result<Vec<String>> {

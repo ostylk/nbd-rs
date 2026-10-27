@@ -21,5 +21,5 @@ pub enum Commands {
     /// Queries more specific information about an export
     Info { name: Option<String> },
     /// Binds and monitors the nbd connection
-    Go,
+    Go { name: Option<String> },
 }
