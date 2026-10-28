@@ -100,26 +100,20 @@ impl Client {
 
         let mut size = None;
         let mut flags = None;
-        loop {
-            match Reply::recv(&mut self.stream).await? {
-                Reply::Ack => break,
-                Reply::Info(reply) => {
-                    match reply {
-                        InfoReply::Export(e_size, e_flags) => {
-                            size = Some(e_size);
-                            flags = Some(e_flags);
-                        }
-                        _ => { /* ignore */ }
-                    }
+        self.collect_replies(|reply| {
+            match reply {
+                Reply::Info(InfoReply::Export(e_size, e_flags)) => {
+                    size = Some(e_size);
+                    flags = Some(e_flags);
                 }
-                Reply::Err(reply_type, msg) => {
-                    return Err(anyhow!("nbd server error: {reply_type:?}: {msg}"));
-                }
-                _ => {
-                    panic!("Unexpected reply")
+                Reply::Info(_) => { /* ignore */ }
+                other => {
+                    return Err(anyhow!("unexpected reply during go(): {other:?}"));
                 }
             }
-        }
+            Ok(())
+        })
+        .await?;
 
         let size = size.context("nbd server did not send export size!")?;
         let flags = flags.context("nbd server did not send transmission flags")?;
@@ -132,18 +126,16 @@ impl Client {
         req.write(&mut self.stream).await?;
 
         let mut exports = Vec::new();
-        loop {
-            match Reply::recv(&mut self.stream).await? {
-                Reply::Ack => break,
+        self.collect_replies(|reply| {
+            match reply {
                 Reply::Server(name) => exports.push(name),
-                Reply::Err(reply_type, msg) => {
-                    return Err(anyhow!("nbd server error: {reply_type:?}: {msg}"));
-                }
-                _ => {
-                    panic!("Unexpected reply");
+                other => {
+                    return Err(anyhow!("unexpected reply during list_exports(): {other:?}"));
                 }
             }
-        }
+            Ok(())
+        })
+        .await?;
 
         Ok(exports)
     }
@@ -163,37 +155,46 @@ impl Client {
         req.write(&mut self.stream).await?;
 
         let mut info = ExportInfo::default();
+        self.collect_replies(|reply| {
+            match reply {
+                Reply::Info(InfoReply::Export(size, flags)) => {
+                    info.size = Some(size);
+                    info.flags = Some(flags);
+                }
+                Reply::Info(InfoReply::Name(name)) => {
+                    info.name = Some(name);
+                }
+                Reply::Info(InfoReply::Description(desc)) => {
+                    info.description = Some(desc);
+                }
+                Reply::Info(InfoReply::BlockSize(min, pref, max)) => {
+                    info.min_bs = Some(min);
+                    info.pref_bs = Some(pref);
+                    info.max_bs = Some(max);
+                }
+                Reply::Info(InfoReply::Unknown) => { /* ignore */ }
+                other => {
+                    return Err(anyhow!("unexpected reply during info_export(): {other:?}"));
+                }
+            }
+            Ok(())
+        })
+        .await?;
+        Ok(info)
+    }
+
+    async fn collect_replies(
+        &mut self,
+        mut handler: impl FnMut(Reply) -> Result<()>,
+    ) -> Result<()> {
         loop {
             match Reply::recv(&mut self.stream).await? {
-                Reply::Ack => break,
-                Reply::Info(reply) => {
-                    match reply {
-                        InfoReply::Export(size, flags) => {
-                            info.size = Some(size);
-                            info.flags = Some(flags);
-                        }
-                        InfoReply::Name(name) => {
-                            info.name = Some(name);
-                        }
-                        InfoReply::Description(desc) => {
-                            info.description = Some(desc);
-                        }
-                        InfoReply::BlockSize(min, pref, max) => {
-                            info.min_bs = Some(min);
-                            info.pref_bs = Some(pref);
-                            info.max_bs = Some(max);
-                        }
-                        InfoReply::Unknown => { /* ignore */ }
-                    }
-                }
+                Reply::Ack => return Ok(()),
                 Reply::Err(reply_type, msg) => {
                     return Err(anyhow!("nbd server error: {reply_type:?}: {msg}"));
                 }
-                _ => {
-                    panic!("Unexpected reply")
-                }
+                other => handler(other)?,
             }
         }
-        Ok(info)
     }
 }
