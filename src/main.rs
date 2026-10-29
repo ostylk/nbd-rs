@@ -1,23 +1,21 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use clap::Parser;
 use futures::StreamExt;
 use genetlink::{message::RawGenlMessage, new_connection};
 use log::{error, info};
-use netlink_packet_core::{
-    NLM_F_ACK, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload, ParseableParametrized,
-};
+use netlink_packet_core::{NetlinkPayload, ParseableParametrized};
 use netlink_packet_generic::GenlMessage;
 use netlink_packet_nbd::{
     NbdCmd, NbdPayload,
     attributes::{NbdAttrs, NbdSocket, NbdSocketAttrs::SocketFd},
-    constants::GENL_MCAST_GROUP_NAME,
 };
 use netlink_sys::AsyncSocket;
 
-use crate::{cli::Cli, nbd::connect_tcp};
+use crate::{cli::Cli, nbd::connect_tcp, netlink::Client};
 
 mod cli;
 mod nbd;
+mod netlink;
 
 async fn run(cli: Cli) -> Result<()> {
     info!("Starting up...");
@@ -57,19 +55,7 @@ async fn run(cli: Cli) -> Result<()> {
         }
     };
 
-    let (conn, mut handle, _) = new_connection()?;
-    tokio::spawn(conn);
-
-    // Figure out multicast group id and setup second socket to listen for nbd events
-    let family = handle.resolve_family::<NbdPayload>().await?;
-    let mcast_grp = family
-        .multicast_groups
-        .get(GENL_MCAST_GROUP_NAME)
-        .ok_or(anyhow!("No nbd multicast group found"))?;
-    let (mut conn2, _, mut recv) = new_connection()?;
-    conn2.socket_mut().socket_mut().bind_auto()?;
-    conn2.socket_mut().socket_mut().add_membership(*mcast_grp)?;
-    tokio::spawn(conn2);
+    let mut client = Client::connect()?;
 
     let genlmsg = GenlMessage::from_payload(NbdPayload {
         cmd: NbdCmd::Connect,
@@ -83,23 +69,20 @@ async fn run(cli: Cli) -> Result<()> {
         ],
     });
 
-    let mut nlhdr = NetlinkHeader::default();
-    nlhdr.flags = NLM_F_REQUEST | NLM_F_ACK;
-    let nlmsg = NetlinkMessage::new(nlhdr, genlmsg.into());
-
-    let mut resps = handle.request(nlmsg).await?;
-    if let Some(resp) = resps.next().await {
-        let resp = resp?;
-        match resp.payload {
-            NetlinkPayload::InnerMessage(genlmsg) => {
-                println!("{:?}", genlmsg);
-            }
-            NetlinkPayload::Error(err) => {
-                eprintln!("Received a netlink error message: {err:?}");
-            }
-            _ => {}
+    {
+        let resps = client.request(genlmsg).await?;
+        let mut resps = std::pin::pin!(resps);
+        while let Some(resp) = resps.next().await {
+            println!("{:?}", resp?);
         }
     }
+
+    // Socket to listen for shit
+    let (mut conn2, _, mut recv) = new_connection()?;
+    let mcast_grp = client.resolve_nbd_mcast().await?;
+    conn2.socket_mut().socket_mut().bind_auto()?;
+    conn2.socket_mut().socket_mut().add_membership(mcast_grp)?;
+    tokio::spawn(conn2);
 
     println!("Waiting for unsolicited messages!");
     loop {
