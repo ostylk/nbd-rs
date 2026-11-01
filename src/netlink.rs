@@ -5,8 +5,17 @@ use netlink_packet_core::{
     NLM_F_ACK, NLM_F_REQUEST, NetlinkHeader, NetlinkMessage, NetlinkPayload,
 };
 use netlink_packet_generic::GenlMessage;
-use netlink_packet_nbd::{NbdPayload, constants::GENL_MCAST_GROUP_NAME};
+use netlink_packet_nbd::{
+    NbdCmd, NbdPayload,
+    attributes::{NbdAttrs, NbdDeviceAttrs},
+    constants::GENL_MCAST_GROUP_NAME,
+};
 use tokio::task::JoinHandle;
+
+pub struct NbdDevice {
+    pub index: u32,
+    pub connected: bool,
+}
 
 pub struct Client {
     handle: GenetlinkHandle,
@@ -55,5 +64,40 @@ impl Client {
                 Err(err) => Some(Err(anyhow!(err))),
             }
         }))
+    }
+
+    pub async fn list_devices(&mut self) -> Result<Vec<NbdDevice>> {
+        let genlmsg = GenlMessage::from_payload(NbdPayload {
+            cmd: NbdCmd::Status,
+            nlas: vec![],
+        });
+
+        let mut devices = Vec::new();
+        let resps = self.request(genlmsg).await?;
+        let mut resps = std::pin::pin!(resps);
+        while let Some(resp) = resps.next().await {
+            for nla in resp?.payload.nlas {
+                let NbdAttrs::DeviceList(list) = nla else {
+                    continue;
+                };
+                for item in list {
+                    let mut device = NbdDevice {
+                        index: u32::MAX,
+                        connected: false,
+                    };
+                    for attr in item.0 {
+                        match attr {
+                            NbdDeviceAttrs::Index(index) => device.index = index,
+                            NbdDeviceAttrs::Connected(connected) => {
+                                device.connected = connected != 0
+                            }
+                        }
+                    }
+                    devices.push(device);
+                }
+            }
+        }
+
+        Ok(devices)
     }
 }

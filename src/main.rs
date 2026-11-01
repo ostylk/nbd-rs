@@ -11,7 +11,11 @@ use netlink_packet_nbd::{
 };
 use netlink_sys::AsyncSocket;
 
-use crate::{cli::Cli, nbd::connect_tcp, netlink::Client};
+use crate::{
+    cli::{Cli, Commands, DeviceCommands, RemoteCommands, ServerArgs},
+    nbd::connect_tcp,
+    netlink::Client,
+};
 
 mod cli;
 mod nbd;
@@ -20,9 +24,37 @@ mod netlink;
 async fn run(cli: Cli) -> Result<()> {
     info!("Starting up...");
 
-    let (fd, size, flags) = match cli.cmd {
-        cli::Commands::List => {
-            let mut client = connect_tcp(&cli.host, cli.port).await?;
+    match cli.cmd {
+        Commands::Remote { server, cmd } => run_remote(server, cmd).await,
+        Commands::Device { cmd } => run_device(cmd).await,
+    }
+}
+
+async fn run_device(cmd: DeviceCommands) -> Result<()> {
+    match cmd {
+        DeviceCommands::List => {
+            let mut client = Client::connect()?;
+            let devices = client
+                .list_devices()
+                .await
+                .context("Cannot retrieve device list from kernel.")?;
+            for device in devices {
+                let state = if device.connected {
+                    "connected"
+                } else {
+                    "disconnected"
+                };
+                println!("/dev/nbd{}\t{state}", device.index);
+            }
+            Ok(())
+        }
+    }
+}
+
+async fn run_remote(server: ServerArgs, cmd: RemoteCommands) -> Result<()> {
+    let (fd, size, flags) = match cmd {
+        RemoteCommands::List => {
+            let mut client = connect_tcp(&server.host, server.port).await?;
             let exports = client
                 .list_exports()
                 .await
@@ -33,8 +65,8 @@ async fn run(cli: Cli) -> Result<()> {
             }
             return Ok(());
         }
-        cli::Commands::Info { name } => {
-            let mut client = connect_tcp(&cli.host, cli.port).await?;
+        RemoteCommands::Info { name } => {
+            let mut client = connect_tcp(&server.host, server.port).await?;
             let export_name = name.unwrap_or("".to_string());
             let info = client
                 .info_export(&export_name)
@@ -44,8 +76,8 @@ async fn run(cli: Cli) -> Result<()> {
             println!("{info:?}");
             return Ok(());
         }
-        cli::Commands::Go { name } => {
-            let mut client = connect_tcp(&cli.host, cli.port).await?;
+        RemoteCommands::Go { name } => {
+            let mut client = connect_tcp(&server.host, server.port).await?;
             let export_name = name.unwrap_or("".to_string());
             let (size, flags) = client.go(&export_name).await.context(format!(
                 "Cannot switch into transmission phase with export {export_name}."
