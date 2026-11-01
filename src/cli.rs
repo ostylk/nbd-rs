@@ -47,4 +47,6 @@ pub enum RemoteCommands {
 pub enum DeviceCommands {
     /// Lists all /dev/nbdX currently bound
     List,
+    /// Disconnects an nbd device
+    Disconnect { index: u32 },
 }

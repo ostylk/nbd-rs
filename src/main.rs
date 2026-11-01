@@ -31,9 +31,10 @@ async fn run(cli: Cli) -> Result<()> {
 }
 
 async fn run_device(cmd: DeviceCommands) -> Result<()> {
+    let mut client = Client::connect()?;
+
     match cmd {
         DeviceCommands::List => {
-            let mut client = Client::connect()?;
             let devices = client
                 .list_devices()
                 .await
@@ -46,9 +47,16 @@ async fn run_device(cmd: DeviceCommands) -> Result<()> {
                 };
                 println!("/dev/nbd{}\t{state}", device.index);
             }
-            Ok(())
+        }
+        DeviceCommands::Disconnect { index } => {
+            client
+                .disconnect_device(index)
+                .await
+                .context("Cannot disconnect nbd device.")?;
         }
     }
+
+    Ok(())
 }
 
 async fn run_remote(server: ServerArgs, cmd: RemoteCommands) -> Result<()> {

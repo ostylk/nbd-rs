@@ -100,4 +100,19 @@ impl Client {
 
         Ok(devices)
     }
+
+    pub async fn disconnect_device(&mut self, index: u32) -> Result<()> {
+        let genlmsg = GenlMessage::from_payload(NbdPayload {
+            cmd: NbdCmd::Disconnect,
+            nlas: vec![NbdAttrs::Index(index)],
+        });
+
+        let resps = self.request(genlmsg).await?;
+        let mut resps = std::pin::pin!(resps);
+        while let Some(resp) = resps.next().await {
+            println!("Ignored response {:?}", resp?);
+        }
+
+        Ok(())
+    }
 }
