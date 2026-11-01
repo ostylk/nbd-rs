@@ -209,7 +209,7 @@ impl Nla for NbdDeviceAttrs {
         use NbdDeviceAttrs::*;
         match self {
             Index(_) => DEVICE_INDEX,
-            Connected(_) => DEVICE_ITEM,
+            Connected(_) => DEVICE_CONNECTED,
         }
     }
 
